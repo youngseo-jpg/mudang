@@ -1382,7 +1382,7 @@ function ScreenRecommend({recs,state,go,back,setConfirmed}){
     <>
       <AppBar onBack={back}/>
       <div className="screen fade">
-        <div className="pad">
+        <div className="pad" style={!full ? {paddingBottom:230} : undefined}>
           <p className="eyebrow">주최자</p>
           {full
             ? <>
@@ -1892,8 +1892,6 @@ function ScreenPrefs({state,dispatch,activeMember,go,back}){
               </div>
             </div>}
 
-          <p className="info-line" style={{marginTop:18}}>
-            💙 이건 '불만'이 아니라 '배려받을 권리'예요. 강제는 없어요.</p>
         </div>
       </div>
       <div className="footer">
