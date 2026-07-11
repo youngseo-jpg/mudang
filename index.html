@@ -455,7 +455,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
 
   /* ── 데모 조작판 (B안: 제품 화면 '밖' · 발표/심사용 · 실제 UI와 분리) ── */
   .app-stage{ position:relative; display:flex; }
-  .demo-panel{ position:absolute; top:64px; left:100%; margin-left:22px; width:196px; z-index:40; }
+  .demo-panel{ position:fixed; right:24px; bottom:24px; width:196px; z-index:80; }
   .demo-panel .dp-launch{ display:none; }
   .demo-panel .dp-body{
     background:var(--bg-soft); border:1px solid var(--line); border-radius:16px;
@@ -478,8 +478,8 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   /* 좁은 화면(폰이 화면을 꽉 채울 때): 우측 가장자리 플로팅 런처로 축소 */
   @media (max-width:960px){
     .demo-panel{
-      position:fixed; left:auto; right:10px; top:46%; bottom:auto; margin:0; width:auto;
-      display:flex; flex-direction:row-reverse; align-items:flex-start; gap:8px; z-index:80;
+      position:fixed; left:auto; right:16px; bottom:16px; top:auto; margin:0; width:auto;
+      display:flex; flex-direction:column-reverse; align-items:flex-end; gap:8px; z-index:80;
     }
     .demo-panel .dp-launch{
       display:inline-flex; align-items:center; justify-content:center;
