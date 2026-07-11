@@ -452,6 +452,44 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   @media (max-width:520px){
     .phone{ width:100vw; height:100vh; border-radius:0; box-shadow:none; }
   }
+
+  /* ── 데모 조작판 (B안: 제품 화면 '밖' · 발표/심사용 · 실제 UI와 분리) ── */
+  .app-stage{ position:relative; display:flex; }
+  .demo-panel{ position:absolute; top:64px; left:100%; margin-left:22px; width:196px; z-index:40; }
+  .demo-panel .dp-launch{ display:none; }
+  .demo-panel .dp-body{
+    background:var(--bg-soft); border:1px solid var(--line); border-radius:16px;
+    padding:14px; box-shadow:var(--shadow);
+  }
+  .demo-panel .dp-head{
+    font-size:11px; font-weight:800; color:var(--ink-3); letter-spacing:.4px;
+    display:flex; align-items:center; gap:5px; margin-bottom:3px;
+  }
+  .demo-panel .dp-sub{ font-size:11px; color:var(--ink-3); line-height:1.5; margin:0 0 12px; }
+  .demo-panel .dp-btn{
+    width:100%; text-align:left; border:1px solid var(--line); background:var(--bg);
+    color:var(--ink); font-size:12.5px; font-weight:700; border-radius:10px;
+    padding:11px 12px; cursor:pointer; margin-bottom:8px;
+    display:flex; align-items:center; gap:8px; transition:transform .1s, border-color .15s;
+  }
+  .demo-panel .dp-btn:last-child{ margin-bottom:0; }
+  .demo-panel .dp-btn:hover{ border-color:var(--blue); }
+  .demo-panel .dp-btn:active{ transform:scale(.97); }
+  /* 좁은 화면(폰이 화면을 꽉 채울 때): 우측 가장자리 플로팅 런처로 축소 */
+  @media (max-width:960px){
+    .demo-panel{
+      position:fixed; left:auto; right:10px; top:46%; bottom:auto; margin:0; width:auto;
+      display:flex; flex-direction:row-reverse; align-items:flex-start; gap:8px; z-index:80;
+    }
+    .demo-panel .dp-launch{
+      display:inline-flex; align-items:center; justify-content:center;
+      width:46px; height:46px; border-radius:50%; background:var(--blue); color:#fff;
+      border:none; font-size:15px; cursor:pointer; box-shadow:var(--shadow);
+    }
+    .demo-panel .dp-body{ display:none; width:198px; }
+    .demo-panel.open .dp-body{ display:block; }
+  }
+
   .notch{
     position:absolute; top:0; left:50%; transform:translateX(-50%);
     width:150px; height:30px; background:#1c1f24;
@@ -850,6 +888,32 @@ function recommend(members){
   return results.slice(0,3);
 }
 
+// 필수 전원이 모두 가능한 슬롯이 하나라도 있는가
+function hasFullRequiredSlot(members){
+  const req = members.filter(m=>m.required);
+  if(req.length===0) return false;
+  for(const day of DAYS) for(const si in SLOTS){
+    const key=`${day}-${si}`;
+    if(req.every(m=>m.avail.has(key))) return true;
+  }
+  return false;
+}
+
+// 필수 중 '정확히 1명'만 빠지면 전원 가능해지는 슬롯들 → 그 1명 기준으로 묶음
+function dropOneUnlocks(members){
+  const req = members.filter(m=>m.required);
+  const byId = {};
+  for(const day of DAYS) for(const si in SLOTS){
+    const key=`${day}-${si}`;
+    const missing = req.filter(m=>!m.avail.has(key));
+    if(missing.length===1){
+      const m = missing[0];
+      (byId[m.id] ??= {member:m, slots:[]}).slots.push({day, slot:SLOTS[si], key});
+    }
+  }
+  return Object.values(byId); // [{member, slots:[{day,slot,key}]}]
+}
+
 /* ═══════════════════════════════════════════════════════════
    상태 관리
    ═══════════════════════════════════════════════════════════ */
@@ -892,6 +956,31 @@ function reducer(state, action){
       const nudged = new Set(state.nudged); nudged.add(action.id);
       return {...state, nudged};
     }
+    case "NUDGE_ALL": {
+      const nudged = new Set(state.nudged);
+      state.members.filter(m=>!m.responded).forEach(m=>nudged.add(m.id));
+      return {...state, nudged};
+    }
+    case "CLOSE_DEADLINE":  return {...state, closed:true};
+    case "EXTEND_DEADLINE": return {...state, closed:false, deadline:"하루 더"};
+    case "LOAD_NO_OVERLAP": {
+      // 데모: 필수 3인이 어느 슬롯에서도 셋 다 겹치지 않음(각 슬롯마다 1명씩만 빠짐)
+      const members = [
+        { id:0, name:"민지", role:"주최자·PM", color:AV[0], required:true, responded:true,
+          avail: cells([["월",1],["화",1],["수",1]]), prefs:["lunch"] },
+        { id:1, name:"준호", role:"백엔드", color:AV[1], required:true, responded:true,
+          avail: cells([["화",1],["화",2],["수",2]]), prefs:["morning"] },
+        { id:2, name:"서연", role:"디자이너", color:AV[2], required:true, responded:true,
+          avail: cells([["수",1],["수",2],["목",0]]), prefs:[] },
+        { id:3, name:"도현", role:"프론트", color:AV[3], required:false, responded:true,
+          avail: cells([["화",1],["수",1],["수",2]]), prefs:[] },
+        { id:4, name:"수빈", role:"마케터", color:AV[4], required:false, responded:true,
+          avail: cells([["화",2],["수",1]]), prefs:["lunch"] },
+        { id:5, name:"지훈", role:"데이터", color:AV[5], required:false, responded:true,
+          avail: cells([["수",2],["목",0]]), prefs:[] },
+      ];
+      return {...state, members, closed:false};
+    }
     default: return state;
   }
 }
@@ -902,6 +991,7 @@ const initialState = {
   deadline:"다음 주까지",
   members:initialMembers,
   nudged:new Set(),
+  closed:false,
 };
 
 /* ═══════════════════════════════════════════════════════════
@@ -925,6 +1015,32 @@ function AppBar({onBack, right}){
       {onBack && <button className="back" onClick={onBack}>‹</button>}
       <div className="spacer"></div>
       {right}
+    </div>
+  );
+}
+/* 데모 조작판 — 제품 프레임 '밖'에 위치. 흩어져 있던 데모 칩을 한곳으로 모음. */
+function DemoPanel({dispatch, go, setActiveMember, reset}){
+  const [open, setOpen] = useState(false);
+  const run = (fn)=>{ fn(); setOpen(false); };
+  const items = [
+    { ic:"⚡",  label:"바로 추천 보기",       fn:()=>{ dispatch({type:"RESPOND_ALL"});     go("recommend"); } },
+    { ic:"⚠️", label:"전원 불가 상태",        fn:()=>{ dispatch({type:"LOAD_NO_OVERLAP"}); go("recommend"); } },
+    { ic:"⏰", label:"마감 임박 상태",        fn:()=>{ dispatch({type:"CLOSE_DEADLINE"});  go("deadline");  } },
+    { ic:"👥", label:"참석자(심사자) 시점",   fn:()=>{ setActiveMember(5);                 go("invite");    } },
+    { ic:"↺",  label:"처음부터 다시",         fn:()=>{ reset("setup"); } },
+  ];
+  return (
+    <div className={"demo-panel"+(open?" open":"")}>
+      <button className="dp-launch" aria-label="데모 조작판 열기" onClick={()=>setOpen(o=>!o)}>◆</button>
+      <div className="dp-body">
+        <div className="dp-head">◆ 데모 조작판</div>
+        <p className="dp-sub">발표·심사용 컨트롤이에요. 실제 화면과는 분리돼 있어요.</p>
+        {items.map((it,i)=>(
+          <button key={i} className="dp-btn" onClick={()=>run(it.fn)}>
+            <span>{it.ic}</span>{it.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -988,6 +1104,7 @@ function App(){
   const hasSwitcher = attendeeScreens.includes(screen);
 
   return (
+    <div className="app-stage">
     <div className={"phone"+(hasSwitcher?" has-switcher":"")}>
       <div className="notch"></div>
       <StatusBar/>
@@ -1001,6 +1118,7 @@ function App(){
       {screen==="members"      && <ScreenMembers {...{state,dispatch,go,back}}/>}
       {screen==="dashboard"    && <ScreenDashboard {...{state,dispatch,go,back,respondedCount,setActiveMember,showToast}}/>}
       {screen==="recommend"    && <ScreenRecommend {...{recs,state,go,back,setConfirmed}}/>}
+      {screen==="deadline"     && <ScreenDeadline {...{state,dispatch,go,back,respondedCount,showToast}}/>}
       {screen==="manual"       && <ScreenManual {...{state,go,back,setConfirmed}}/>}
       {screen==="confirm"      && <ScreenConfirm {...{confirmed,state,reset,go}}/>}
 
@@ -1017,6 +1135,8 @@ function App(){
 
       <div className={"toast"+(toast?" show":"")}>{toast}</div>
     </div>
+    <DemoPanel {...{dispatch, go, setActiveMember, reset}}/>
+    </div>
   );
 }
 
@@ -1027,10 +1147,7 @@ function ScreenSetup({state,dispatch,go,reset}){
   const isToday = state.deadline==="오늘";
   return (
     <>
-      <AppBar right={
-        <button className="demo-chip" onClick={()=>{ dispatch({type:"RESPOND_ALL"}); go("recommend"); }}>
-          ⚡ 바로 추천 보기
-        </button>}/>
+      <AppBar/>
       <div className="screen fade">
         <div className="pad">
           <p className="eyebrow">주최자</p>
@@ -1135,10 +1252,7 @@ function ScreenDashboard({state,dispatch,go,back,respondedCount,setActiveMember,
   const all = respondedCount===total;
   return (
     <>
-      <AppBar onBack={back} right={
-        <button className="demo-chip" onClick={()=>{ setActiveMember(5); go("invite"); }}>
-          👥 심사자 모드
-        </button>}/>
+      <AppBar onBack={back}/>
       <div className="screen fade">
         <div className="pad">
           <p className="eyebrow">주최자 · {state.title}</p>
@@ -1180,14 +1294,54 @@ function ScreenDashboard({state,dispatch,go,back,respondedCount,setActiveMember,
 
 /* ── 04 시스템 추천 3개 ⭐ ── */
 function ScreenRecommend({recs,state,go,back,setConfirmed}){
+  const full = hasFullRequiredSlot(state.members);
+  const unlocks = full ? [] : dropOneUnlocks(state.members);
+  const noResp = state.members.filter(m=>!m.responded).length;
+
+  // 완전 빈 상태: 추천할 슬롯이 하나도 없음(응답 부족 등)
+  if(recs.length===0){
+    return (
+      <>
+        <AppBar onBack={back}/>
+        <div className="screen fade">
+          <div className="pad">
+            <p className="eyebrow">주최자</p>
+            <h1 className="title">아직 추천할 시간이 없어요</h1>
+            <p className="sub">응답이 조금 더 모이면 딱 맞는 시간을 찾아드릴게요.</p>
+            <div className="summary-card" style={{marginTop:24,textAlign:"center"}}>
+              <div style={{fontSize:34,marginBottom:8}}>🕓</div>
+              <div className="big" style={{fontSize:18}}>응답이 더 필요해요</div>
+              {noResp>0 &&
+                <p className="info-line" style={{justifyContent:"center",marginTop:10}}>
+                  아직 {noResp}명 미응답 — 응답이 모이면 더 좋은 시간이 나올 수 있어요.</p>}
+            </div>
+          </div>
+        </div>
+        <div className="footer">
+          <button className="btn" onClick={()=>go("deadline")}>마감·응답 현황 보기</button>
+          <button className="btn ghost" style={{marginTop:10}} onClick={()=>go("dashboard")}>대시보드로 돌아가기</button>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <AppBar onBack={back}/>
       <div className="screen fade">
         <div className="pad">
           <p className="eyebrow">주최자</p>
-          <h1 className="title">이 시간을 추천해요</h1>
-          <p className="sub">모두의 가능한 시간과 선호를 반영했어요. 이유까지 함께요.</p>
+          {full
+            ? <>
+                <h1 className="title">이 시간을 추천해요</h1>
+                <p className="sub">모두의 가능한 시간과 선호를 반영했어요. 이유까지 함께요.</p>
+              </>
+            : <>
+                <h1 className="title">모두가 되는 시간을 못 찾았어요</h1>
+                <p className="sub">완벽하진 않지만, 가장 가까운 방법을 찾아뒀어요.</p>
+                {noResp>0 &&
+                  <p className="info-line">아직 {noResp}명 미응답 — 응답이 모이면 더 좋은 시간이 나올 수 있어요.</p>}
+              </>}
 
           {recs.map((r,i)=>(
             <div key={r.key} className={"rcard"+(i===0?" top":"")}>
@@ -1233,6 +1387,26 @@ function ScreenRecommend({recs,state,go,back,setConfirmed}){
             </div>
           ))}
 
+          {!full && unlocks.length>0 && (
+            <div style={{marginTop:28}}>
+              <div style={{fontSize:15,fontWeight:800,color:"var(--ink-1)",marginBottom:4}}>딱 1명만 빠지면 전원 가능해요</div>
+              <p className="info-line" style={{marginBottom:12}}>👀 주최자에게만 보여요 — 누구에게 양해를 구할지 정할 때 참고하세요.</p>
+              {unlocks.map(u=>(
+                <div key={u.member.id} className="summary-card" style={{marginTop:12}}>
+                  <div className="big" style={{fontSize:17}}>{u.member.name}님만 빠지면</div>
+                  <div className="reasons" style={{marginTop:12}}>
+                    {u.slots.map(s=>(
+                      <div className="reason ok" key={s.key}>
+                        <span className="ic">✓</span>
+                        <span>{s.day}요일 {slotLabel(s.slot)} · 나머지 필수 전원 가능</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           <p className="info-line" style={{justifyContent:"center"}}>
             🔒 누가 어떤 선호를 골랐는지는 표시되지 않아요. 숫자만 보여요.</p>
           <div style={{textAlign:"center",marginTop:8}}>
@@ -1240,6 +1414,11 @@ function ScreenRecommend({recs,state,go,back,setConfirmed}){
           </div>
         </div>
       </div>
+      {!full &&
+        <div className="footer">
+          <button className="btn" onClick={()=>go("deadline")}>마감 늘려 응답 더 받기</button>
+          <button className="btn ghost" style={{marginTop:10}} onClick={()=>go("manual")}>직접 시간 찾기</button>
+        </div>}
     </>
   );
 }
@@ -1268,6 +1447,55 @@ function MiniBar({members, slot, activeDay}){
 }
 
 /* ── 04-b 직접 시간 찾기 (주최자 수동 선택) ── */
+/* ── 04b 마감 처리 ⏰ ── */
+function ScreenDeadline({state,dispatch,go,back,respondedCount,showToast}){
+  const total = state.members.length;
+  const all = respondedCount===total;
+  const waiting = state.members.filter(m=>!m.responded);
+  return (
+    <>
+      <AppBar onBack={back}/>
+      <div className="screen fade">
+        <div className="pad">
+          <p className="eyebrow">주최자 · {state.title}</p>
+          <h1 className="title">{all?"모두 응답했어요":"응답 마감됐어요"}</h1>
+          <p className="sub">{respondedCount}/{total}명 응답
+            {all?" · 바로 추천을 볼 수 있어요.":" · 응답한 사람만으로도 진행할 수 있어요."}</p>
+
+          {!all && (
+            <div style={{marginTop:20}}>
+              <div style={{fontSize:13,fontWeight:800,color:"var(--ink-3)",marginBottom:6}}>아직 응답 안 한 사람</div>
+              {waiting.map(m=>(
+                <div className="srow" key={m.id}>
+                  <Avatar m={m} size={40}/>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:15,fontWeight:700}}>{m.name}
+                      <span style={{fontSize:12,color:"var(--ink-3)",fontWeight:600,marginLeft:6}}>
+                        {m.required?"필수":"선택"}</span></div>
+                  </div>
+                  {state.nudged.has(m.id)
+                    ? <span className="badge wait">콕 찔러뒀어요</span>
+                    : <span className="badge wait">미응답</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="footer">
+        <button className="btn" onClick={()=>go("recommend")}>
+          {all?"추천 보기":`응답한 ${respondedCount}명으로 추천 보기`}</button>
+        {!all && <>
+          <button className="btn ghost" style={{marginTop:10}} onClick={()=>{ dispatch({type:"EXTEND_DEADLINE"}); go("dashboard"); showToast("마감을 하루 더 늘렸어요 · 무당이 다시 알릴게요"); }}>
+            하루 더 기다리기</button>
+          <button className="btn line" style={{marginTop:10}} onClick={()=>{ dispatch({type:"NUDGE_ALL"}); showToast(`미응답 ${waiting.length}명을 모두 콕 찔렀어요`); }}>
+            미응답자 모두 콕 찌르기</button>
+        </>}
+      </div>
+    </>
+  );
+}
+
 function ScreenManual({state,go,back,setConfirmed}){
   const [pick,setPick]=useState(null); // {day, si}
   const req = state.members.filter(m=>m.required);
@@ -1334,6 +1562,7 @@ function ScreenManual({state,go,back,setConfirmed}){
             </div>
           </div>
           <p className="mgrid-legend">숫자 = 그 시간에 가능한 전체 인원 · 진할수록 많아요</p>
+          <p className="mgrid-legend">빈 칸(0) = 아직 아무도 안 되는 시간</p>
 
           {chosen && (
             <div className="summary-card fade" style={{marginTop:20}}>
@@ -1349,6 +1578,8 @@ function ScreenManual({state,go,back,setConfirmed}){
                   <span>선택 {chosen.optOk}명{chosen.optOk===opt.length?" 모두":` / ${opt.length}명`} 가능</span>
                 </div>
               </div>
+              {chosen.total===0 &&
+                <p className="info-line" style={{marginTop:12}}>⚠️ 아직 아무도 안 되는 시간이에요 — 응답이 더 모이면 다시 확인해 보세요.</p>}
             </div>
           )}
         </div>
