@@ -620,6 +620,17 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   }
   .seg button.on{ background:var(--bg); color:var(--blue-dk); box-shadow:var(--shadow-sm); }
 
+  /* ── 참석자 삭제 버튼 ── */
+  .del-btn{
+    flex:0 0 32px; width:32px; height:32px; margin-left:-4px; border:none; border-radius:50%;
+    background:transparent; color:var(--ink-3); font-size:13px; font-weight:800; line-height:1;
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    font-family:var(--font); transition:background .15s, color .15s, transform .1s;
+  }
+  .del-btn:hover{ background:var(--warn-sub); color:var(--warn-ink); }
+  .del-btn:active{ transform:scale(.88); }
+  .del-btn.ghost{ pointer-events:none; }
+
   .counter{
     display:inline-flex; gap:8px; background:var(--bg-soft); border-radius:12px;
     padding:10px 16px; font-size:14px; font-weight:800; color:var(--ink-2); margin-top:4px;
@@ -936,6 +947,11 @@ function reducer(state, action){
       const members = state.members.map(m=>m.id===action.id?{...m,required:!m.required}:m);
       return {...state, members};
     }
+    case "DELETE_MEMBER": {
+      const members = state.members.filter(m=>m.id!==action.id);
+      const nudged = new Set(state.nudged); nudged.delete(action.id);
+      return {...state, members, nudged};
+    }
     case "ADD_MEMBER": {
       const nextId = Math.max(-1, ...state.members.map(m=>m.id)) + 1;
       const color = AV[nextId % AV.length];
@@ -1028,10 +1044,8 @@ function StatusBar(){
                 fill="none" stroke="currentColor" strokeWidth="1.5" strokeOpacity="0.35"/>
           {/* 우측 단자 */}
           <path d="M28.4 5.4a2.6 2.6 0 010 5.2z" fill="currentColor" fillOpacity="0.35"/>
-          {/* 안쪽 알약 */}
+          {/* 안쪽 충전량 */}
           <rect x="2.4" y="2.9" width="17" height="10.2" rx="3.2" fill="currentColor"/>
-          <text x="10.9" y="11.2" textAnchor="middle" fontSize="8.6" fontWeight="800"
-                fill="var(--bg)">75</text>
         </svg>
       </div>
     </div>
@@ -1253,7 +1267,9 @@ function ScreenMembers({state,dispatch,go,back}){
           </div>
 
           <div style={{marginTop:8}}>
-            {state.members.map(m=>(
+            {state.members.map(m=>{
+              const isHost = m.role.includes("주최자");
+              return (
               <div className="prow" key={m.id}>
                 <Avatar m={m}/>
                 <div style={{flex:1}}>
@@ -1264,8 +1280,12 @@ function ScreenMembers({state,dispatch,go,back}){
                   <button className={m.required?"on":""} onClick={()=> !m.required && dispatch({type:"TOGGLE_REQ",id:m.id})}>필수</button>
                   <button className={!m.required?"on":""} onClick={()=> m.required && dispatch({type:"TOGGLE_REQ",id:m.id})}>선택</button>
                 </div>
+                {isHost
+                  ? <span className="del-btn ghost" aria-hidden="true"></span>
+                  : <button className="del-btn" aria-label={`${m.name} 삭제`}
+                      onClick={()=>dispatch({type:"DELETE_MEMBER",id:m.id})}>✕</button>}
               </div>
-            ))}
+            );})}
           </div>
           <p className="info-line">🔎 필수는 꼭 맞춰요. 선택은 못 와도 괜찮아요 — 서열이 아니라 역할이에요.</p>
         </div>
