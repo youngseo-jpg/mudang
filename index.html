@@ -711,7 +711,8 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   .gcell.head, .gcell.time{ height:24px; }  /* 헤더/시간 라벨은 비대화형이라 낮게 */
   .gcell.head{ color:var(--ink-3); font-weight:800; }
   .gcell.time{ color:var(--ink-3); font-size:10px; white-space:nowrap; }
-  .gcell.slot{ background:var(--bg-soft); height:40px; cursor:pointer; border:1.5px solid transparent; transition:all .1s; }
+  .gcell.slot{ background:var(--bg-soft); height:40px; cursor:pointer; border:1.5px solid transparent; transition:all .1s;
+    touch-action:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
   .gcell.slot.on{ background:var(--blue); color:#fff; }  /* solid — 패턴을 덮음 */
   .gcell.slot:active{ transform:scale(.9); }
 
@@ -1767,6 +1768,37 @@ function ScreenAvailability({state,dispatch,activeMember,go,back}){
     const k=`${d}-${si}`; const n=new Set(sel);
     n.has(k)?n.delete(k):n.add(k); setSel(n);
   };
+  // 드래그 칠하기(paint) 선택 — When2meet 방식
+  const dragging=useRef(false);
+  const dragMode=useRef(true);       // true=채우기, false=지우기
+  const selRef=useRef(sel);
+  useEffect(()=>{ selRef.current=sel; },[sel]);
+  const applyPaint=(d,si)=>{
+    const k=`${d}-${si}`; const cur=selRef.current;
+    if(cur.has(k)===dragMode.current) return;   // 변화 없으면 skip
+    const n=new Set(cur); dragMode.current ? n.add(k) : n.delete(k);
+    selRef.current=n; setSel(n);
+  };
+  const cellFromPoint=(x,y)=>{
+    const c=document.elementFromPoint(x,y)?.closest('[data-slot]');
+    return c ? {d:c.dataset.day, si:parseInt(c.dataset.slot)} : null;
+  };
+  const onCellDown=(d,si)=>{
+    dragging.current=true;
+    dragMode.current=!selRef.current.has(`${d}-${si}`);  // 첫 칸으로 모드 결정
+    applyPaint(d,si);
+  };
+  const onGridMove=(e)=>{
+    if(!dragging.current) return;
+    const c=cellFromPoint(e.clientX,e.clientY);
+    if(c) applyPaint(c.d,c.si);
+  };
+  useEffect(()=>{
+    const up=()=>{ dragging.current=false; };
+    window.addEventListener('pointerup',up);
+    window.addEventListener('pointercancel',up);
+    return ()=>{ window.removeEventListener('pointerup',up); window.removeEventListener('pointercancel',up); };
+  },[]);
   // 각 프리셋이 대상으로 하는 셀 목록
   const presetCells=(type)=>{
     const out=[];
@@ -1823,7 +1855,7 @@ function ScreenAvailability({state,dispatch,activeMember,go,back}){
           </div>
 
           <div className="grid-scroll">
-            <div className="grid">
+            <div className="grid" onPointerMove={onGridMove}>
               <div className="gcell head"></div>
               {DAYS.map(d=><div key={d} className="gcell head">{d}</div>)}
               {SLOTS.map((s,si)=>(
@@ -1831,7 +1863,7 @@ function ScreenAvailability({state,dispatch,activeMember,go,back}){
                   <div className="gcell time">{slotLabel(s)}</div>
                   {DAYS.map(d=>{
                     const on=sel.has(`${d}-${si}`);
-                    return <div key={d} className={"gcell slot"+(on?" on":"")} onClick={()=>toggle(d,si)}>{on?"✓":""}</div>;
+                    return <div key={d} data-day={d} data-slot={si} className={"gcell slot"+(on?" on":"")} onPointerDown={()=>onCellDown(d,si)}>{on?"✓":""}</div>;
                   })}
                 </React.Fragment>
               ))}
