@@ -1280,7 +1280,7 @@ function ScreenMembers({state,dispatch,go,back}){
             <input className="field" style={{flex:1}} value={draft}
               placeholder="이름이나 이메일로 추가"
               onChange={e=>setDraft(e.target.value)}
-              onKeyDown={e=>{ if(e.key==="Enter") add(); }}/>
+              onKeyDown={e=>{ if(e.key==="Enter" && !e.nativeEvent.isComposing) add(); }}/>
             <button className="add-btn" disabled={!draft.trim()} onClick={add}>추가</button>
           </div>
 
